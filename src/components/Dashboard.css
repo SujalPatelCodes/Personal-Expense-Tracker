@@ -141,6 +141,46 @@
   font-size: 0.85rem;
 }
 
+.dash-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+/* Premium Export Dropdown */
+.select-wrapper.no-icon .filter-select {
+  padding-left: 16px !important;
+  padding-right: 44px !important;
+  background-image: none !important; /* Remove default arrow */
+  background-color: var(--bg-glass);
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+  height: 42px;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.select-wrapper.no-icon .filter-select:hover {
+  background-color: var(--bg-glass-hover);
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.select-wrapper.no-icon .select-chevron {
+  right: 14px;
+  color: var(--accent-primary);
+  opacity: 1;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Expense List */
 .expense-list {
   display: flex;
@@ -484,9 +524,11 @@
   .dash-filters {
     flex-direction: column;
     align-items: stretch;
+    padding: 12px;
   }
   .filter-group {
     flex-direction: column;
+    gap: 8px;
   }
   .filter-select {
     min-width: auto;
@@ -496,16 +538,48 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+    padding: 14px;
   }
   .expense-item-right {
     width: 100%;
     justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
   }
   .modal-actions {
     flex-direction: column;
   }
   .modal-actions .btn {
     width: 100%;
+  }
+  .dash-welcome {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .dash-welcome > .dash-actions-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .dash-welcome > .dash-actions-group .select-wrapper.no-icon {
+    flex: 1 1 100%; /* Export Data stays full width on top */
+  }
+
+  .dash-welcome > .dash-actions-group #history-btn,
+  #add-expense-btn {
+    flex: 1;
+    min-width: 0; /* History and Add Expense stay side-by-side */
+    margin-top: 0 !important;
+  }
+
+  .dash-welcome > .dash-actions-group .btn, 
+  .dash-welcome > .dash-actions-group .filter-select {
+    padding: 10px 8px !important;
+    font-size: 0.8rem !important;
+    height: 40px !important;
   }
 }
 

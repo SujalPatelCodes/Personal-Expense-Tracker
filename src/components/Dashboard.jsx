@@ -6,7 +6,7 @@ import {
   Wallet, Calendar, Filter, Search, ArrowUpRight, ArrowDownRight,
   ShoppingCart, Coffee, Car, Home, Zap, Heart, GraduationCap,
   Gamepad2, MoreHorizontal, ChevronDown, IndianRupee, PieChart,
-  Repeat, Bell, CreditCard, Clock, History
+  Repeat, Bell, CreditCard, Clock, History, Download
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -65,13 +65,12 @@ export default function Dashboard() {
   const [showForm, setShowForm] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, type: null, title: '' });
   const [editingId, setEditingId] = useState(null);
+  const [editingRecurringId, setEditingRecurringId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterPeriod, setFilterPeriod] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [appliedStartDate, setAppliedStartDate] = useState('');
-  const [appliedEndDate, setAppliedEndDate] = useState('');
   const [form, setForm] = useState({
     title: '',
     amount: '',
@@ -105,6 +104,14 @@ export default function Dashboard() {
       document.body.style.overflow = 'unset';
     };
   }, [showForm, showRecurringForm]);
+
+  const resetRecurringForm = () => {
+    setEditingRecurringId(null);
+    if(document.getElementById('new-sub-name')) document.getElementById('new-sub-name').value = '';
+    if(document.getElementById('new-sub-amount')) document.getElementById('new-sub-amount').value = '';
+    if(document.getElementById('new-sub-freq')) document.getElementById('new-sub-freq').value = 'monthly';
+    if(document.getElementById('new-sub-date')) document.getElementById('new-sub-date').value = new Date().toISOString().split('T')[0];
+  };
 
   const resetForm = () => {
     setForm({
@@ -178,6 +185,104 @@ export default function Dashboard() {
     setConfirmDelete({ show: true, id, type, title });
   };
 
+  const exportToCSV = () => {
+    if (fullHistory.length === 0) return;
+    const headers = ['Type', 'Title/Name', 'Category/Frequency', 'Amount (INR)', 'Date'];
+    const rows = fullHistory.map(item => {
+      const type = item.type === 'expense' ? 'Expense' : 'Recurring';
+      const title = item.title || item.name;
+      const category = item.category || item.frequency;
+      const amount = item.amount;
+      const date = new Date(item.timestamp).toLocaleDateString('en-IN');
+      const safeTitle = `"${title.toString().replace(/"/g, '""')}"`;
+      const safeCategory = `"${category.toString().replace(/"/g, '""')}"`;
+      return [type, safeTitle, safeCategory, amount, date].join(',');
+    });
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `financial_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportToExcel = () => {
+    if (fullHistory.length === 0) return;
+    
+    // Create HTML table structure that Excel understands
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+            <x:Name>Financial History</x:Name>
+            <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+          </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          table { border-collapse: collapse; width: 100%; font-family: sans-serif; }
+          th { background-color: #10b981; color: white; padding: 12px; border: 1px solid #ddd; text-align: left; }
+          td { padding: 10px; border: 1px solid #ddd; }
+          tr:nth-child(even) { background-color: #f2f2f2; }
+        </style>
+      </head>
+      <body>
+        <h2>Personal Expense Tracker - Financial Report</h2>
+        <p>Generated on: ${new Date().toLocaleString('en-IN')}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Title/Name</th>
+              <th>Category/Frequency</th>
+              <th>Amount (INR)</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+    
+    fullHistory.forEach(item => {
+      const type = item.type === 'expense' ? 'Expense' : 'Recurring';
+      const title = item.title || item.name;
+      const category = item.category || item.frequency;
+      const amount = item.amount;
+      const date = new Date(item.timestamp).toLocaleDateString('en-IN');
+      
+      html += `
+        <tr>
+          <td>${type}</td>
+          <td>${title}</td>
+          <td>${category}</td>
+          <td>${amount}</td>
+          <td>${date}</td>
+        </tr>
+      `;
+    });
+    
+    html += `
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+    
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `financial_report_${new Date().toISOString().split('T')[0]}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Filtered expenses
   const filteredExpenses = useMemo(() => {
     let result = [...expenses];
@@ -209,11 +314,11 @@ export default function Dashboard() {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       result = result.filter(exp => new Date(exp.date) >= monthStart);
     } else if (filterPeriod === 'custom') {
-      if (appliedStartDate) {
-        result = result.filter(exp => exp.date >= appliedStartDate);
+      if (customStartDate) {
+        result = result.filter(exp => exp.date >= customStartDate);
       }
-      if (appliedEndDate) {
-        result = result.filter(exp => exp.date <= appliedEndDate);
+      if (customEndDate) {
+        result = result.filter(exp => exp.date <= customEndDate);
       }
     }
 
@@ -306,7 +411,24 @@ export default function Dashboard() {
             </h1>
             <p className="dash-welcome-sub">Here's your financial overview</p>
           </div>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="dash-actions-group">
+            <div className="select-wrapper no-icon" style={{ minWidth: '160px' }}>
+              <select 
+                className="input-field filter-select" 
+                style={{ paddingRight: '36px', height: '100%' }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'csv') exportToCSV();
+                  if (val === 'excel') exportToExcel();
+                  e.target.value = ''; // Reset
+                }}
+              >
+                <option value="">Export Data...</option>
+                <option value="csv">CSV File</option>
+                <option value="excel">Excel Sheet</option>
+              </select>
+              <Download size={16} className="select-chevron" style={{ right: '12px', pointerEvents: 'none' }} />
+            </div>
             <button
               className="btn btn-secondary"
               onClick={() => setShowHistory(true)}
@@ -442,16 +564,6 @@ export default function Dashboard() {
                       value={customEndDate} 
                       onChange={e => setCustomEndDate(e.target.value)} 
                     />
-                    <button 
-                      className="btn btn-secondary" 
-                      style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', gap: '6px', alignItems: 'center' }}
-                      onClick={() => {
-                        setAppliedStartDate(customStartDate);
-                        setAppliedEndDate(customEndDate);
-                      }}
-                    >
-                      <Search size={14} /> Search
-                    </button>
                   </div>
                 )}
               </div>
@@ -718,37 +830,73 @@ export default function Dashboard() {
 
       {/* Recurring Management Modal */}
       {showRecurringForm && (
-        <div className="modal-overlay" onClick={() => setShowRecurringForm(false)}>
+        <div className="modal-overlay" onClick={() => { setShowRecurringForm(false); resetRecurringForm(); }}>
           <div className="modal glass-card animate-fadeInUp" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">
               <div className="modal-header-with-icon">
                 <Repeat size={20} className="accent-text" />
                 <h2>Manage Recurring Payments</h2>
               </div>
-              <button className="btn-icon" onClick={() => setShowRecurringForm(false)}><X size={20} /></button>
+              <button className="btn-icon" onClick={() => { setShowRecurringForm(false); resetRecurringForm(); }}><X size={20} /></button>
             </div>
 
             <div className="modal-body">
               <div className="sub-manager-list">
-                {subscriptions.map(sub => (
-                  <div key={sub.id} className="sub-manager-item">
-                    <div className="sub-manager-info">
-                      <strong>{sub.name}</strong>
-                      <span>{formatCurrency(sub.amount)} / {sub.frequency}</span>
-                    </div>
-                    <button
-                      className="btn-icon-sm action-delete"
-                      onClick={() => requestDelete(sub.id, 'recurring', sub.name)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-                {subscriptions.length === 0 && <p className="sidebar-empty">No active subscriptions. Add one below.</p>}
+                {subscriptions.length === 0 ? (
+                  <p className="sidebar-empty">No active subscriptions. Add one below.</p>
+                ) : (
+                  subscriptions.map(sub => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const next = new Date(sub.nextDate);
+                    next.setHours(0, 0, 0, 0);
+                    if (next < today) {
+                      if (sub.frequency === 'monthly') next.setMonth(next.getMonth() + 1);
+                      else if (sub.frequency === 'yearly') next.setFullYear(next.getFullYear() + 1);
+                      else if (sub.frequency === 'weekly') next.setDate(next.getDate() + 7);
+                      else next.setMonth(next.getMonth() + 1);
+                    }
+                    const formattedNextDate = next.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                    
+                    return (
+                      <div key={sub.id} className="sub-manager-item">
+                        <div className="sub-manager-info">
+                          <strong>{sub.name}</strong>
+                          <span style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <span>{formatCurrency(sub.amount)} / {sub.frequency}</span>
+                            <span style={{ opacity: 0.5 }}>•</span>
+                            <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>Next: {formattedNextDate}</span>
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            className="btn-icon-sm action-edit"
+                            onClick={() => {
+                              setEditingRecurringId(sub.id);
+                              document.getElementById('new-sub-name').value = sub.name;
+                              document.getElementById('new-sub-amount').value = sub.amount;
+                              document.getElementById('new-sub-freq').value = sub.frequency;
+                              document.getElementById('new-sub-date').value = sub.nextDate ? sub.nextDate.split('T')[0] : new Date().toISOString().split('T')[0];
+                            }}
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            className="btn-icon-sm action-delete"
+                            onClick={() => requestDelete(sub.id, 'recurring', sub.name)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               <div className="sub-add-form">
-                <h4>Add New Recurring</h4>
+                <h4>{editingRecurringId ? 'Edit Recurring Payment' : 'Add New Recurring'}</h4>
                 <div className="modal-row">
                   <input
                     type="text"
@@ -769,36 +917,74 @@ export default function Dashboard() {
                     <option value="yearly">Yearly</option>
                     <option value="weekly">Weekly</option>
                   </select>
-                  <button
-                    className="btn btn-primary"
-                    onClick={async () => {
-                      const name = document.getElementById('new-sub-name').value;
-                      const amount = document.getElementById('new-sub-amount').value;
-                      const freq = document.getElementById('new-sub-freq').value;
-                      if (!name || !amount) return;
+                  <input
+                    type="date"
+                    className="input-field"
+                    id="new-sub-date"
+                    defaultValue={new Date().toISOString().split('T')[0]}
+                  />
+                  <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
+                    <button
+                      className="btn btn-primary"
+                      style={{ flex: 1 }}
+                      onClick={async () => {
+                        const name = document.getElementById('new-sub-name').value;
+                        const amount = document.getElementById('new-sub-amount').value;
+                        const freq = document.getElementById('new-sub-freq').value;
+                        const customDate = document.getElementById('new-sub-date').value;
+                        if (!name || !amount) return;
 
-                      const nextDate = new Date().toISOString().split('T')[0];
-                      const { data, error } = await supabase
-                        .from('recurring')
-                        .insert({
-                          user_id: user.id,
-                          name,
-                          amount: parseFloat(amount),
-                          frequency: freq,
-                          next_date: nextDate
-                        })
-                        .select()
-                        .single();
+                        const nextDate = customDate || new Date().toISOString().split('T')[0];
+                        
+                        if (editingRecurringId) {
+                          const { data, error } = await supabase
+                            .from('recurring')
+                            .update({
+                              name,
+                              amount: parseFloat(amount),
+                              frequency: freq,
+                              next_date: nextDate
+                            })
+                            .eq('id', editingRecurringId)
+                            .select()
+                            .single();
 
-                      if (!error && data) {
-                        setSubscriptions(prev => [...prev, { ...data, nextDate: data.next_date }]);
-                        document.getElementById('new-sub-name').value = '';
-                        document.getElementById('new-sub-amount').value = '';
-                      }
-                    }}
-                  >
-                    Add
-                  </button>
+                          if (!error && data) {
+                            setSubscriptions(prev => prev.map(s => s.id === editingRecurringId ? { ...data, nextDate: data.next_date } : s));
+                            resetRecurringForm();
+                          }
+                        } else {
+                          const { data, error } = await supabase
+                            .from('recurring')
+                            .insert({
+                              user_id: user.id,
+                              name,
+                              amount: parseFloat(amount),
+                              frequency: freq,
+                              next_date: nextDate
+                            })
+                            .select()
+                            .single();
+
+                          if (!error && data) {
+                            setSubscriptions(prev => [...prev, { ...data, nextDate: data.next_date }]);
+                            resetRecurringForm();
+                          }
+                        }
+                      }}
+                    >
+                      {editingRecurringId ? 'Update' : 'Add'}
+                    </button>
+                    {editingRecurringId && (
+                      <button
+                        className="btn btn-secondary"
+                        style={{ flex: 1 }}
+                        onClick={resetRecurringForm}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -817,7 +1003,7 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="history-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
+            <div className="history-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)', gap: '12px', flexWrap: 'wrap' }}>
               <div className="select-wrapper">
                 <Calendar size={14} className="select-icon" />
                 <select 
@@ -834,7 +1020,6 @@ export default function Dashboard() {
                     return <option key={m} value={m}>{label}</option>;
                   })}
                 </select>
-                <ChevronDown size={14} className="select-chevron" />
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Total Expense</div>

@@ -203,6 +203,14 @@
   gap: 10px;
 }
 
+.desktop-only {
+  display: flex;
+}
+
+.mobile-nav-actions {
+  display: none;
+}
+
 /* Theme Toggle */
 .theme-toggle {
   padding: 4px;
@@ -322,5 +330,25 @@
     top: 60px;
     background: rgba(0, 0, 0, 0.3);
     z-index: 98;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-nav-actions {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-text {
+    display: none;
+  }
+  .navbar-inner {
+    gap: 12px;
   }
 }

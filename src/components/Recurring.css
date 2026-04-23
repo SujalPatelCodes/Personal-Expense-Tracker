@@ -222,3 +222,21 @@
     font-size: 1.8rem;
   }
 }
+
+@media (max-width: 480px) {
+  .recurring-overview {
+    grid-template-columns: 1fr;
+  }
+  .subscription-grid {
+    grid-template-columns: 1fr;
+  }
+  .recurring-header {
+    align-items: stretch;
+  }
+  .recurring-header .btn {
+    width: 100%;
+  }
+  .overview-info h2 {
+    font-size: 1.5rem;
+  }
+}

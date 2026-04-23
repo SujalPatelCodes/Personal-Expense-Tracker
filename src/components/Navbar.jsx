@@ -53,25 +53,13 @@ export default function Navbar() {
         <div className={`navbar-links ${mobileMenuOpen ? 'open' : ''}`}>
           {(!isAppSection || isAuthenticated) && (
             <>
-              <button
-                className={`nav-link ${isActive('/') ? 'active' : ''}`}
-                onClick={() => handleNavigate('/')}
-                id="nav-home"
-              >
+              <button className={`nav-link ${isActive('/') ? 'active' : ''}`} onClick={() => handleNavigate('/')}>
                 Home
               </button>
-              <button
-                className={`nav-link ${isActive('/about') ? 'active' : ''}`}
-                onClick={() => handleNavigate('/about')}
-                id="nav-about"
-              >
+              <button className={`nav-link ${isActive('/about') ? 'active' : ''}`} onClick={() => handleNavigate('/about')}>
                 About
               </button>
-              <button
-                className={`nav-link ${isActive('/contact') ? 'active' : ''}`}
-                onClick={() => handleNavigate('/contact')}
-                id="nav-contact"
-              >
+              <button className={`nav-link ${isActive('/contact') ? 'active' : ''}`} onClick={() => handleNavigate('/contact')}>
                 Contact
               </button>
             </>
@@ -79,29 +67,48 @@ export default function Navbar() {
 
           {isAuthenticated && (
             <>
-              <button
-                className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`}
-                onClick={() => handleNavigate('/dashboard')}
-                id="nav-dashboard"
-              >
+              <button className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`} onClick={() => handleNavigate('/dashboard')}>
                 <LayoutDashboard size={16} />
                 Dashboard
               </button>
-              <button
-                className={`nav-link ${isActive('/analytics') ? 'active' : ''}`}
-                onClick={() => handleNavigate('/analytics')}
-                id="nav-analytics"
-              >
+              <button className={`nav-link ${isActive('/analytics') ? 'active' : ''}`} onClick={() => handleNavigate('/analytics')}>
                 <BarChart2 size={16} />
                 Analytics
               </button>
             </>
           )}
+
+          {/* Mobile-only actions */}
+          <div className="mobile-nav-actions">
+            <div className="dropdown-divider"></div>
+            <button className="nav-link" onClick={toggleTheme}>
+              {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+              <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
+            </button>
+            
+            {!isAuthenticated ? (
+              <button className="nav-link" onClick={() => handleNavigate('/auth')}>
+                <User size={16} />
+                <span>Sign In</span>
+              </button>
+            ) : (
+              <>
+                <button className="nav-link" onClick={() => handleNavigate('/profile')}>
+                  <Settings size={16} />
+                  <span>Settings</span>
+                </button>
+                <button className="nav-link logout-item" onClick={handleLogout}>
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="navbar-actions">
           <button
-            className="theme-toggle"
+            className="theme-toggle desktop-only"
             onClick={toggleTheme}
             id="theme-toggle"
             aria-label="Toggle theme"
@@ -112,35 +119,24 @@ export default function Navbar() {
               </div>
             </div>
           </button>
-
-          <button
-            className="mobile-menu-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            id="mobile-menu-toggle"
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
           
           {!isAuthenticated ? (
             <button
-              className={`btn-signin-nav ${isActive('/auth') ? 'active' : ''}`}
+              className="btn-signin-nav desktop-only"
               onClick={() => handleNavigate('/auth')}
-              id="nav-auth-premium"
             >
               Sign In
             </button>
           ) : (
-            <div className="nav-user-section" ref={userMenuRef}>
+            <div className="nav-user-section desktop-only" ref={userMenuRef}>
               <button 
                 className={`nav-profile-toggle ${showUserMenu ? 'active' : ''}`}
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                title="User Menu"
               >
                 <div className="nav-user-avatar">
                   {user?.name?.charAt(0)?.toUpperCase()}
                 </div>
-                <span className="nav-user-name">{user?.name}</span>
+                <span className="nav-user-name">{user?.name?.split(' ')[0]}</span>
                 <ChevronDown size={14} className={`menu-chevron ${showUserMenu ? 'rotate' : ''}`} />
               </button>
 
@@ -155,11 +151,6 @@ export default function Navbar() {
                     <Settings size={16} />
                     <span>Settings</span>
                   </button>
-                  <button className="dropdown-item" onClick={() => handleNavigate('/dashboard')}>
-                    <LayoutDashboard size={16} />
-                    <span>Dashboard</span>
-                  </button>
-                  <div className="dropdown-divider"></div>
                   <button className="dropdown-item logout-item" onClick={handleLogout}>
                     <LogOut size={16} />
                     <span>Logout</span>
@@ -168,6 +159,14 @@ export default function Navbar() {
               )}
             </div>
           )}
+
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
         </div>
       </div>
 
