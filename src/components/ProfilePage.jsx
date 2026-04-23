@@ -9,12 +9,15 @@ import {
 import './ProfilePage.css';
 
 export default function ProfilePage() {
-  const { user, updateName, linkAccount, deleteAccount, logout } = useAuth();
+  const { user, updateName, linkAccount, deleteAccount, logout, updatePassword } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [newName, setNewName] = useState(user?.name || '');
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleUpdateName = async (e) => {
     e.preventDefault();
@@ -42,7 +45,33 @@ export default function ProfilePage() {
     }
   };
 
-  const isProviderLinked = (id) => user?.providerData?.includes(id);
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      setMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
+      return;
+    }
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+    const result = await updatePassword(newPassword);
+    setLoading(false);
+    if (result.success) {
+      setMessage({ type: 'success', text: 'Password updated successfully!' });
+      setIsChangingPassword(false);
+      setNewPassword('');
+    } else {
+      setMessage({ type: 'error', text: result.message });
+    }
+  };
+
+  const isProviderLinked = (id) => {
+    const providerMap = {
+      'google.com': 'google',
+      'microsoft.com': 'azure',
+      'apple.com': 'apple'
+    };
+    return user?.providers?.includes(providerMap[id] || id);
+  };
 
   return (
     <div className="profile-page animate-fadeIn" id="profile-page">
@@ -206,19 +235,32 @@ export default function ProfilePage() {
               <button className="btn btn-secondary-soft btn-full" onClick={logout}>
                 <LogOut size={16} /> Logout from Account
               </button>
-              <button className="btn btn-secondary-soft btn-full" disabled>
-                <Key size={16} /> Change Password
-              </button>
+              {isChangingPassword ? (
+                <form onSubmit={handleUpdatePassword} className="password-form" style={{ width: '100%' }}>
+                  <input
+                    type="password"
+                    placeholder="New Password"
+                    className="input-field"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />
+                  <div className="password-form-actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button type="submit" className="btn btn-primary btn-sm" disabled={loading} style={{ flex: 1 }}>Save</button>
+                    <button type="button" className="btn btn-secondary-soft btn-sm" onClick={() => { setIsChangingPassword(false); setNewPassword(''); }} style={{ flex: 1 }}>Cancel</button>
+                  </div>
+                </form>
+              ) : (
+                <button className="btn btn-secondary-soft btn-full" onClick={() => setIsChangingPassword(true)}>
+                  <Key size={16} /> Set / Change Password
+                </button>
+              )}
               <div className="danger-zone">
                 <h4>Danger Zone</h4>
                 <p>Actions here are permanent and cannot be undone.</p>
                 <button 
                   className="btn btn-danger-soft btn-full" 
-                  onClick={() => {
-                    if(window.confirm('Are you sure you want to delete your account? This will wipe all your data.')) {
-                      deleteAccount();
-                    }
-                  }}
+                  onClick={() => setShowDeleteConfirm(true)}
                 >
                   <Trash2 size={16} /> Delete Account
                 </button>
@@ -227,6 +269,38 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '20px' }}>
+          <div className="modal glass-card animate-fadeInUp" style={{ maxWidth: '400px', textAlign: 'center', padding: '32px', background: 'var(--bg-glass)', borderRadius: 'var(--radius-xl)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ justifyContent: 'center', marginBottom: '16px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--danger-soft)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                <Trash2 size={24} />
+              </div>
+            </div>
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>Confirm Account Deletion</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              Are you sure you want to delete your account? This action will permanently wipe all your data and cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(false)} style={{ flex: 1 }}>
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  deleteAccount();
+                }}
+              >
+                Delete Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

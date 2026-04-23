@@ -281,7 +281,8 @@
   gap: 20px;
 }
 .category-card,
-.recent-card {
+.recent-card,
+.recurring-card {
   padding: 24px;
 }
 .sidebar-title {
@@ -515,6 +516,9 @@
   justify-content: space-between;
   margin-bottom: 16px;
 }
+.sidebar-header-row .sidebar-title {
+  margin-bottom: 0;
+}
 .btn-icon-sm {
   width: 28px;
   height: 28px;
@@ -616,10 +620,13 @@
 .sub-add-form {
   border-top: 1px solid var(--border-color);
   padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 .sub-add-form h4 {
   font-size: 0.95rem;
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 .modal-body {
   padding-top: 10px;

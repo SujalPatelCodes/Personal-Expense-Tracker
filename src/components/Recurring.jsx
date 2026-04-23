@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabase';
 import { 
   Repeat, Plus, Trash2, Edit3, X, Check, 
   Calendar, CreditCard, Bell, ChevronRight, 
@@ -9,12 +10,7 @@ import './Recurring.css';
 
 export default function Recurring() {
   const { user } = useAuth();
-  const storageKey = `trackit-recurring-${user?.id}`;
-
-  const [subscriptions, setSubscriptions] = useState(() => {
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [subscriptions, setSubscriptions] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -27,8 +23,19 @@ export default function Recurring() {
   });
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(subscriptions));
-  }, [subscriptions, storageKey]);
+    if (!user) return;
+    const fetchData = async () => {
+      const { data, error } = await supabase
+        .from('recurring')
+        .select('*')
+        .eq('user_id', user.id);
+        
+      if (!error && data) {
+        setSubscriptions(data.map(d => ({ ...d, nextDate: d.next_date })));
+      }
+    };
+    fetchData();
+  }, [user]);
 
   const resetForm = () => {
     setForm({
@@ -42,30 +49,53 @@ export default function Recurring() {
     setShowForm(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.amount) return;
 
     if (editingId) {
-      setSubscriptions(prev => prev.map(sub =>
-        sub.id === editingId
-          ? { ...sub, ...form, amount: parseFloat(form.amount) }
-          : sub
-      ));
+      const { error } = await supabase
+        .from('recurring')
+        .update({
+          name: form.name,
+          amount: parseFloat(form.amount),
+          frequency: form.frequency,
+          next_date: form.nextDate
+        })
+        .eq('id', editingId);
+
+      if (!error) {
+        setSubscriptions(prev => prev.map(sub =>
+          sub.id === editingId
+            ? { ...sub, ...form, amount: parseFloat(form.amount), nextDate: form.nextDate }
+            : sub
+        ));
+      }
     } else {
-      const newSub = {
-        id: Date.now().toString(),
-        ...form,
-        amount: parseFloat(form.amount),
-        status: 'active'
-      };
-      setSubscriptions(prev => [...prev, newSub]);
+      const { data, error } = await supabase
+        .from('recurring')
+        .insert({
+          user_id: user.id,
+          name: form.name,
+          amount: parseFloat(form.amount),
+          frequency: form.frequency,
+          next_date: form.nextDate
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setSubscriptions(prev => [...prev, { ...data, nextDate: data.next_date }]);
+      }
     }
     resetForm();
   };
 
-  const handleDelete = (id) => {
-    setSubscriptions(prev => prev.filter(s => s.id !== id));
+  const handleDelete = async (id) => {
+    const { error } = await supabase.from('recurring').delete().eq('id', id);
+    if (!error) {
+      setSubscriptions(prev => prev.filter(s => s.id !== id));
+    }
   };
 
   const handleEdit = (sub) => {

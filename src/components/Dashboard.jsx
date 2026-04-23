@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabase';
 import {
   Plus, Trash2, Edit3, X, Check, TrendingUp, TrendingDown,
   Wallet, Calendar, Filter, Search, ArrowUpRight, ArrowDownRight,
   ShoppingCart, Coffee, Car, Home, Zap, Heart, GraduationCap,
   Gamepad2, MoreHorizontal, ChevronDown, IndianRupee, PieChart,
-  Repeat, Bell, CreditCard, Clock
+  Repeat, Bell, CreditCard, Clock, History
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -25,26 +26,52 @@ const getCategoryData = (name) => CATEGORIES.find(c => c.name === name) || CATEG
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const storageKey = `trackit-expenses-${user?.id}`;
-  const recurringStorageKey = `trackit-recurring-${user?.id}`;
-
-  const [expenses, setExpenses] = useState(() => {
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [subscriptions, setSubscriptions] = useState(() => {
-    const saved = localStorage.getItem(recurringStorageKey);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [expenses, setExpenses] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
 
   const [showRecurringForm, setShowRecurringForm] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyMonth, setHistoryMonth] = useState('all');
+
+  const fullHistory = useMemo(() => {
+    const all = [
+      ...expenses.map(e => ({ ...e, type: 'expense', timestamp: new Date(e.date || e.created_at || new Date()).getTime() })),
+      ...subscriptions.map(s => ({ ...s, type: 'recurring', timestamp: new Date(s.nextDate || s.created_at || new Date()).getTime() }))
+    ];
+    return all.sort((a, b) => b.timestamp - a.timestamp);
+  }, [expenses, subscriptions]);
+
+  const historyMonths = useMemo(() => {
+    const months = new Set();
+    fullHistory.forEach(item => {
+      const d = new Date(item.timestamp);
+      months.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    });
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  }, [fullHistory]);
+
+  const filteredHistory = useMemo(() => {
+    if (historyMonth === 'all') return fullHistory;
+    return fullHistory.filter(item => {
+      const d = new Date(item.timestamp);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === historyMonth;
+    });
+  }, [fullHistory, historyMonth]);
+
+  const historyTotal = useMemo(() => {
+    return filteredHistory.reduce((sum, item) => sum + item.amount, 0);
+  }, [filteredHistory]);
 
   const [showForm, setShowForm] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null, type: null, title: '' });
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterPeriod, setFilterPeriod] = useState('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
   const [form, setForm] = useState({
     title: '',
     amount: '',
@@ -54,12 +81,17 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(expenses));
-  }, [expenses, storageKey]);
-
-  useEffect(() => {
-    localStorage.setItem(recurringStorageKey, JSON.stringify(subscriptions));
-  }, [subscriptions, recurringStorageKey]);
+    if (!user) return;
+    const fetchData = async () => {
+      const [{ data: expData }, { data: subData }] = await Promise.all([
+        supabase.from('expenses').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+        supabase.from('recurring').select('*').eq('user_id', user.id)
+      ]);
+      if (expData) setExpenses(expData);
+      if (subData) setSubscriptions(subData.map(s => ({ ...s, nextDate: s.next_date })));
+    };
+    fetchData();
+  }, [user]);
 
   // Prevent scrolling when modal is open
   useEffect(() => {
@@ -86,24 +118,46 @@ export default function Dashboard() {
     setShowForm(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title || !form.amount) return;
 
     if (editingId) {
-      setExpenses(prev => prev.map(exp =>
-        exp.id === editingId
-          ? { ...exp, ...form, amount: parseFloat(form.amount) }
-          : exp
-      ));
+      const { error } = await supabase
+        .from('expenses')
+        .update({
+          title: form.title,
+          amount: parseFloat(form.amount),
+          category: form.category,
+          date: form.date,
+          notes: form.notes
+        })
+        .eq('id', editingId);
+
+      if (!error) {
+        setExpenses(prev => prev.map(exp =>
+          exp.id === editingId
+            ? { ...exp, ...form, amount: parseFloat(form.amount) }
+            : exp
+        ));
+      }
     } else {
-      const newExpense = {
-        id: Date.now().toString(),
-        ...form,
-        amount: parseFloat(form.amount),
-        createdAt: new Date().toISOString()
-      };
-      setExpenses(prev => [newExpense, ...prev]);
+      const { data, error } = await supabase
+        .from('expenses')
+        .insert({
+          user_id: user.id,
+          title: form.title,
+          amount: parseFloat(form.amount),
+          category: form.category,
+          date: form.date,
+          notes: form.notes
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setExpenses(prev => [data, ...prev]);
+      }
     }
     resetForm();
   };
@@ -120,8 +174,8 @@ export default function Dashboard() {
     setShowForm(true);
   };
 
-  const handleDelete = (id) => {
-    setExpenses(prev => prev.filter(exp => exp.id !== id));
+  const requestDelete = (id, type, title) => {
+    setConfirmDelete({ show: true, id, type, title });
   };
 
   // Filtered expenses
@@ -154,6 +208,13 @@ export default function Dashboard() {
     } else if (filterPeriod === 'month') {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       result = result.filter(exp => new Date(exp.date) >= monthStart);
+    } else if (filterPeriod === 'custom') {
+      if (appliedStartDate) {
+        result = result.filter(exp => exp.date >= appliedStartDate);
+      }
+      if (appliedEndDate) {
+        result = result.filter(exp => exp.date <= appliedEndDate);
+      }
     }
 
     // Sort by date desc
@@ -245,14 +306,24 @@ export default function Dashboard() {
             </h1>
             <p className="dash-welcome-sub">Here's your financial overview</p>
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={() => { resetForm(); setShowForm(true); }}
-            id="add-expense-btn"
-          >
-            <Plus size={18} />
-            Add Expense
-          </button>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowHistory(true)}
+              id="history-btn"
+            >
+              <History size={18} />
+              History
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => { resetForm(); setShowForm(true); }}
+              id="add-expense-btn"
+            >
+              <Plus size={18} />
+              Add Expense
+            </button>
+          </div>
         </div>
 
         {/* Stat Cards */}
@@ -312,7 +383,7 @@ export default function Dashboard() {
           {/* Expenses List */}
           <div className="dash-main">
             {/* Filters */}
-            <div className="dash-filters glass-card">
+            <div className="dash-filters glass-card" style={{ flexWrap: 'wrap' }}>
               <div className="search-box">
                 <Search size={18} className="search-icon" />
                 <input
@@ -324,7 +395,7 @@ export default function Dashboard() {
                   id="search-expenses"
                 />
               </div>
-              <div className="filter-group">
+              <div className="filter-group" style={{ flexWrap: 'wrap' }}>
                 <div className="select-wrapper">
                   <Filter size={14} className="select-icon" />
                   <select
@@ -338,7 +409,6 @@ export default function Dashboard() {
                       <option key={c.name} value={c.name}>{c.name}</option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="select-chevron" />
                 </div>
                 <div className="select-wrapper">
                   <Calendar size={14} className="select-icon" />
@@ -352,9 +422,38 @@ export default function Dashboard() {
                     <option value="today">Today</option>
                     <option value="week">This Week</option>
                     <option value="month">This Month</option>
+                    <option value="custom">Custom Range</option>
                   </select>
-                  <ChevronDown size={14} className="select-chevron" />
                 </div>
+                {filterPeriod === 'custom' && (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="date" 
+                      className="input-field" 
+                      style={{ padding: '8px 12px', fontSize: '0.85rem', width: 'auto' }} 
+                      value={customStartDate} 
+                      onChange={e => setCustomStartDate(e.target.value)} 
+                    />
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>to</span>
+                    <input 
+                      type="date" 
+                      className="input-field" 
+                      style={{ padding: '8px 12px', fontSize: '0.85rem', width: 'auto' }} 
+                      value={customEndDate} 
+                      onChange={e => setCustomEndDate(e.target.value)} 
+                    />
+                    <button 
+                      className="btn btn-secondary" 
+                      style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', gap: '6px', alignItems: 'center' }}
+                      onClick={() => {
+                        setAppliedStartDate(customStartDate);
+                        setAppliedEndDate(customEndDate);
+                      }}
+                    >
+                      <Search size={14} /> Search
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -408,7 +507,7 @@ export default function Dashboard() {
                           </button>
                           <button
                             className="btn-icon action-delete"
-                            onClick={() => handleDelete(expense.id)}
+                            onClick={() => requestDelete(expense.id, 'expense', expense.title)}
                             aria-label="Delete"
                           >
                             <Trash2 size={15} />
@@ -511,7 +610,7 @@ export default function Dashboard() {
             {/* Recent Activity */}
             <div className="recent-card glass-card">
               <h3 className="sidebar-title">Recent Activity</h3>
-              {expenses.slice(0, 5).map((exp) => {
+              {expenses.slice(0, 3).map((exp) => {
                 const cat = getCategoryData(exp.category);
                 return (
                   <div key={exp.id} className="recent-item">
@@ -639,7 +738,7 @@ export default function Dashboard() {
                     </div>
                     <button
                       className="btn-icon-sm action-delete"
-                      onClick={() => setSubscriptions(prev => prev.filter(s => s.id !== sub.id))}
+                      onClick={() => requestDelete(sub.id, 'recurring', sub.name)}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -672,28 +771,151 @@ export default function Dashboard() {
                   </select>
                   <button
                     className="btn btn-primary"
-                    onClick={() => {
+                    onClick={async () => {
                       const name = document.getElementById('new-sub-name').value;
                       const amount = document.getElementById('new-sub-amount').value;
                       const freq = document.getElementById('new-sub-freq').value;
                       if (!name || !amount) return;
 
-                      const newSub = {
-                        id: Date.now().toString(),
-                        name,
-                        amount: parseFloat(amount),
-                        frequency: freq,
-                        nextDate: new Date().toISOString().split('T')[0]
-                      };
-                      setSubscriptions(prev => [...prev, newSub]);
-                      document.getElementById('new-sub-name').value = '';
-                      document.getElementById('new-sub-amount').value = '';
+                      const nextDate = new Date().toISOString().split('T')[0];
+                      const { data, error } = await supabase
+                        .from('recurring')
+                        .insert({
+                          user_id: user.id,
+                          name,
+                          amount: parseFloat(amount),
+                          frequency: freq,
+                          next_date: nextDate
+                        })
+                        .select()
+                        .single();
+
+                      if (!error && data) {
+                        setSubscriptions(prev => [...prev, { ...data, nextDate: data.next_date }]);
+                        document.getElementById('new-sub-name').value = '';
+                        document.getElementById('new-sub-amount').value = '';
+                      }
                     }}
                   >
                     Add
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {showHistory && (
+        <div className="modal-overlay" onClick={() => setShowHistory(false)}>
+          <div className="modal glass-card animate-fadeInUp" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ marginBottom: '16px' }}>
+              <h2>Expense & Recurring History</h2>
+              <button className="btn-icon" onClick={() => setShowHistory(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="history-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
+              <div className="select-wrapper">
+                <Calendar size={14} className="select-icon" />
+                <select 
+                  className="input-field filter-select" 
+                  value={historyMonth}
+                  onChange={(e) => setHistoryMonth(e.target.value)}
+                  style={{ minWidth: '160px' }}
+                >
+                  <option value="all">All Time</option>
+                  {historyMonths.map(m => {
+                    const [year, month] = m.split('-');
+                    const date = new Date(year, parseInt(month) - 1);
+                    const label = date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+                    return <option key={m} value={m}>{label}</option>;
+                  })}
+                </select>
+                <ChevronDown size={14} className="select-chevron" />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Total Expense</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-primary)' }}>
+                  {formatCurrency(historyTotal)}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '50vh', overflowY: 'auto', paddingRight: '8px' }}>
+              {filteredHistory.length === 0 ? (
+                <p className="sidebar-empty">No history found for this period.</p>
+              ) : (
+                <div className="recent-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {filteredHistory.map((item) => {
+                    const isExp = item.type === 'expense';
+                    const cat = getCategoryData(isExp ? item.category : 'Other');
+                    return (
+                      <div key={`${item.type}-${item.id}`} className="expense-item glass-card" style={{ padding: '12px 16px', margin: 0 }}>
+                        <div className="expense-item-left">
+                          <div className="expense-cat-icon" style={{ background: `${cat.color}15`, color: cat.color, width: 36, height: 36, minWidth: 36 }}>
+                            {isExp ? <cat.icon size={16} /> : <Repeat size={16} />}
+                          </div>
+                          <div className="expense-info">
+                            <h4 className="expense-title">{isExp ? item.title : item.name}</h4>
+                            <div className="expense-meta">
+                              <span className="expense-category-tag" style={{ color: cat.color, background: `${cat.color}12` }}>
+                                {isExp ? item.category : `Recurring (${item.frequency})`}
+                              </span>
+                              <span className="expense-date">
+                                Added: {new Date(item.timestamp).toLocaleDateString('en-IN')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="expense-item-right">
+                          <span className="expense-amount">{formatCurrency(item.amount)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete.show && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete({ show: false, id: null, type: null, title: '' })}>
+          <div className="modal glass-card animate-fadeInUp" style={{ maxWidth: '400px', textAlign: 'center', padding: '32px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ justifyContent: 'center', marginBottom: '16px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--danger-soft)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                <Trash2 size={24} />
+              </div>
+            </div>
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>Confirm Deletion</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              Are you sure you want to delete <strong>{confirmDelete.title}</strong>? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button className="btn btn-secondary" onClick={() => setConfirmDelete({ show: false, id: null, type: null, title: '' })} style={{ flex: 1 }}>
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                style={{ flex: 1 }}
+                onClick={async () => {
+                  if (confirmDelete.type === 'expense') {
+                    const { error } = await supabase.from('expenses').delete().eq('id', confirmDelete.id);
+                    if (!error) setExpenses(prev => prev.filter(exp => exp.id !== confirmDelete.id));
+                  } else if (confirmDelete.type === 'recurring') {
+                    const { error } = await supabase.from('recurring').delete().eq('id', confirmDelete.id);
+                    if (!error) setSubscriptions(prev => prev.filter(s => s.id !== confirmDelete.id));
+                  }
+                  setConfirmDelete({ show: false, id: null, type: null, title: '' });
+                }}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>

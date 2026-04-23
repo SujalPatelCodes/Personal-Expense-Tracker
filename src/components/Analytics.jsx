@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabase';
 import { BarChart2, TrendingUp, TrendingDown, PieChart, Calendar, ArrowRight, AlertCircle, ShoppingCart, Coffee, Car, Home, Zap, Heart, GraduationCap, Gamepad2, MoreHorizontal } from 'lucide-react';
 import './Analytics.css';
 
@@ -17,12 +18,23 @@ const CATEGORIES = [
 
 export default function Analytics() {
   const { user } = useAuth();
-  const storageKey = `trackit-expenses-${user?.id}`;
+  const [expenses, setExpenses] = useState([]);
 
-  const [expenses] = useState(() => {
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
-  });
+  useEffect(() => {
+    if (!user) return;
+    const fetchExpenses = async () => {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false });
+        
+      if (!error && data) {
+        setExpenses(data);
+      }
+    };
+    fetchExpenses();
+  }, [user]);
 
   const stats = useMemo(() => {
     const now = new Date();
