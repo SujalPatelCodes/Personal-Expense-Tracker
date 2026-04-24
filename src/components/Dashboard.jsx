@@ -359,7 +359,7 @@ export default function Dashboard() {
         },
         columnStyles: {
           3: { halign: 'left' }, // Align 'TOTAL SPENT' with Category
-          4: { halign: 'left', cellWidth: 'auto' } // Force right alignment for the whole column
+          4: { halign: 'left', cellWidth: 'auto' } // Force left alignment for the whole column
         }
       });
 
