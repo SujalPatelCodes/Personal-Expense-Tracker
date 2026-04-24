@@ -46,9 +46,9 @@ export default function AuthPage({ setCurrentPage }) {
 
     let result;
     if (isSignUp) {
-      result = signup(form.name, form.email, form.password);
+      result = await signup(form.name, form.email, form.password);
     } else {
-      result = signin(form.email, form.password);
+      result = await signin(form.email, form.password);
     }
 
     setLoading(false);

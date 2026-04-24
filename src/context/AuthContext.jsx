@@ -62,7 +62,21 @@ export function AuthProvider({ children }) {
         email,
         password,
       });
-      if (error) throw error;
+      
+      if (error) {
+        // Attempt to check if email exists using our custom RPC
+        const { data: exists, error: rpcError } = await supabase.rpc('check_email_exists', { lookup_email: email });
+        
+        if (!rpcError && exists === false) {
+          throw new Error('Email not registered. Please sign up first.');
+        } else if (rpcError) {
+          // If they haven't run the SQL snippet yet, fallback to a standard message
+          throw new Error('Incorrect email or password.');
+        } else {
+          throw new Error('Incorrect email or password.');
+        }
+      }
+      
       setUser(mapUser(data.user));
       return { success: true };
     } catch (error) {
@@ -162,15 +176,25 @@ export function AuthProvider({ children }) {
     
     try {
       const userId = user.id;
+      
+      // 1. Delete all user data from custom tables
+      await Promise.all([
+        supabase.from('expenses').delete().eq('user_id', userId),
+        supabase.from('recurring').delete().eq('user_id', userId)
+      ]);
+
+      // 2. Call the SQL function to delete the Auth account
+      const { error } = await supabase.rpc('delete_user');
+      if (error) throw error;
+
+      // 3. Clear local storage and log out
       localStorage.removeItem(`trackit-expenses-${userId}`);
       localStorage.removeItem(`trackit-recurring-${userId}`);
-      
-      // Note: In Supabase, account deletion by the client is typically 
-      // handled via an RPC call. Here we simulate it by cleaning up local data and signing out.
       
       await logout();
       return { success: true };
     } catch (error) {
+      console.error("Deletion error:", error);
       return { success: false, message: error.message };
     }
   };
