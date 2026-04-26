@@ -152,6 +152,28 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const changePassword = async (oldPassword, newPassword) => {
+    try {
+      // 1. Verify old password by attempting a sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: oldPassword,
+      });
+
+      if (signInError) {
+        throw new Error('Current password is incorrect.');
+      }
+
+      // 2. Update to new password
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) throw updateError;
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  };
+
   const updatePassword = async (newPassword) => {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -201,7 +223,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{ 
-      user, signup, signin, signInWithGoogle, signInWithMicrosoft, signInWithApple, logout, deleteAccount, isAuthenticated: !!user, loading, updateName, linkAccount, updatePassword 
+      user, signup, signin, signInWithGoogle, signInWithMicrosoft, signInWithApple, logout, deleteAccount, isAuthenticated: !!user, loading, updateName, linkAccount, updatePassword, changePassword 
     }}>
       {!loading && children}
     </AuthContext.Provider>

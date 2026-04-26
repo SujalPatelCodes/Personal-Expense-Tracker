@@ -10,14 +10,16 @@ import { supabase } from '../supabase';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
-  const { user, updateName, linkAccount, deleteAccount, logout, updatePassword } = useAuth();
+  const { user, updateName, linkAccount, deleteAccount, logout, updatePassword, changePassword } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [newName, setNewName] = useState(user?.name || '');
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleUpdateName = async (e) => {
@@ -48,18 +50,29 @@ export default function ProfilePage() {
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
+    
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: 'error', text: 'New passwords do not match.' });
+      return;
+    }
+
     if (newPassword.length < 6) {
       setMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
       return;
     }
+
     setLoading(true);
     setMessage({ type: '', text: '' });
-    const result = await updatePassword(newPassword);
+    
+    const result = await changePassword(oldPassword, newPassword);
+    
     setLoading(false);
     if (result.success) {
       setMessage({ type: 'success', text: 'Password updated successfully!' });
       setIsChangingPassword(false);
+      setOldPassword('');
       setNewPassword('');
+      setConfirmPassword('');
     } else {
       setMessage({ type: 'error', text: result.message });
     }
@@ -236,22 +249,47 @@ export default function ProfilePage() {
             
             <div className="security-actions">
               {isChangingPassword ? (
-                <form onSubmit={handleUpdatePassword} className="password-form" style={{ width: '100%' }}>
-                  <input
-                    type="password"
-                    placeholder="New Password"
-                    className="input-field"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                  />
-                  <div className="password-form-actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                    <button type="submit" className="btn btn-primary btn-sm" disabled={loading} style={{ flex: 1 }}>Save</button>
-                    <button type="button" className="btn btn-secondary-soft btn-sm" onClick={() => { setIsChangingPassword(false); setNewPassword(''); }} style={{ flex: 1 }}>Cancel</button>
+                <form onSubmit={handleUpdatePassword} className="password-form" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div className="form-group-custom">
+                    <label className="input-label-sm">Current Password</label>
+                    <input
+                      type="password"
+                      placeholder="Enter current password"
+                      className="input-field"
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-custom">
+                    <label className="input-label-sm">New Password</label>
+                    <input
+                      type="password"
+                      placeholder="Enter new password"
+                      className="input-field"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group-custom">
+                    <label className="input-label-sm">Confirm New Password</label>
+                    <input
+                      type="password"
+                      placeholder="Confirm new password"
+                      className="input-field"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="password-form-actions" style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                    <button type="submit" className="btn btn-primary btn-sm" disabled={loading} style={{ flex: 1 }}>Update Password</button>
+                    <button type="button" className="btn btn-secondary-soft btn-sm" onClick={() => { setIsChangingPassword(false); setOldPassword(''); setNewPassword(''); setConfirmPassword(''); }} style={{ flex: 1 }}>Cancel</button>
                   </div>
                 </form>
               ) : (
-                <button className="btn btn-secondary-soft btn-full" onClick={() => setIsChangingPassword(true)}>
+                <button className="btn btn-secondary-soft btn-full" onClick={() => { setIsChangingPassword(true); setMessage({ type: '', text: '' }); }}>
                   <Key size={16} /> Change Password
                 </button>
               )}

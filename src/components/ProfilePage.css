@@ -302,6 +302,19 @@
   gap: 20px;
 }
 
+.form-group-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-label-sm {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
 .danger-zone {
   margin-top: 10px;
   padding-top: 24px;
